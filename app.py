@@ -176,6 +176,8 @@ def add_question():
 @admin_required
 def manage_questions():
     questions = Question.query.all()
+    for question in questions:
+        question.options = ast.literal_eval(question.options)
     return render_template('manage_questions.html', questions=questions)
 
 @app.route('/edit_question/<int:id>', methods=['GET', 'POST'])
