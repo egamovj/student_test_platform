@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center">Test Questions</h2>
+            </div>
+            <div class="card-body">
+                <form id="test-form">
+                    {% for question in questions %}
+                    <div class="question-container mb-4">
+                        <h5>{{ loop.index }}. {{ question.question_text }}</h5>
+                        {% for option in question.options|eval %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" 
+                                   name="question_{{ question.id }}" 
+                                   value="{{ option }}" 
+                                   id="q{{ question.id }}_{{ loop.index }}">
+                            <label class="form-check-label" for="q{{ question.id }}_{{ loop.index }}">
+                                {{ option }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">Submit Test</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div class="modal fade" id="resultsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Test Results</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h4 class="text-center mb-4">Your Score: <span id="score"></span></h4>
+                        <div id="results-container"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">Finish</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('test-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const answers = {};
+    const questions = document.querySelectorAll('.question-container');
+    
+    questions.forEach((question, index) => {
+        const questionId = question.querySelector('input').name.split('_')[1];
+        const selectedAnswer = question.querySelector('input:checked');
+        answers[questionId] = selectedAnswer ? selectedAnswer.value : null;
+    });
+
+    try {
+        const response = await fetch('{{ url_for("submit_test") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(answers)
+        });
+        
+        const data = await response.json();
+        
+        // Display results
+        document.getElementById('score').textContent = `${data.score}/${data.total}`;
+        
+        const resultsContainer = document.getElementById('results-container');
+        resultsContainer.innerHTML = data.results.map((result, index) => `
+            <div class="card mb-3 ${result.is_correct ? 'border-success' : 'border-danger'}">
+                <div class="card-body">
+                    <h6 class="card-title">Question ${index + 1}: ${result.question}</h6>
+                    <p class="card-text">Your answer: ${result.student_answer || 'No answer'}</p>
+                    <p class="card-text">Correct answer: ${result.correct_answer}</p>
+                    <p class="card-text">
+                        <span class="badge ${result.is_correct ? 'bg-success' : 'bg-danger'}">
+                            ${result.is_correct ? 'Correct' : 'Incorrect'}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        `).join('');
+        
+        // Show the modal
+        new bootstrap.Modal(document.getElementById('resultsModal')).show();
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while submitting the test');
+    }
+});
+</script>
+{% endblock %}
