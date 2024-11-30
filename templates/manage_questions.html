@@ -44,7 +44,8 @@
                             </tbody>
                         </table>
                     </div>
-                {% else %}
+                {% endif %}
+                {% if not questions %}
                     <p class="text-center">No questions added yet.</p>
                 {% endif %}
             </div>
