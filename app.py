@@ -1,10 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
 import ast
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+import io
+import csv
+from flask import send_file
+from sqlalchemy import func
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
+import humanize
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -204,6 +211,126 @@ def delete_question(id):
     db.session.commit()
     flash('Question deleted successfully!')
     return redirect(url_for('manage_questions'))
+
+# New admin routes
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    # Get statistics
+    total_students = Student.query.count()
+    total_questions = Question.query.count()
+    total_tests = TestResult.query.count()
+    
+    # Calculate average score
+    avg_score = db.session.query(func.avg(TestResult.score)).scalar() or 0
+    avg_score = (avg_score / total_questions * 100) if total_questions > 0 else 0
+    
+    # Get performance data for chart
+    recent_results = TestResult.query.order_by(TestResult.date_taken.desc()).limit(10).all()
+    performance_labels = [result.date_taken.strftime('%Y-%m-%d') for result in recent_results]
+    performance_data = [(result.score / total_questions * 100) for result in recent_results]
+    
+    # Get recent activities
+    recent_activities = []
+    recent_tests = TestResult.query.order_by(TestResult.date_taken.desc()).limit(5).all()
+    for test in recent_tests:
+        recent_activities.append({
+            'description': f"Test Completed",
+            'details': f"{test.student.first_name} {test.student.last_name} scored {test.score}/{total_questions}",
+            'time_ago': humanize.naturaltime(datetime.utcnow() - test.date_taken)
+        })
+    
+    return render_template('admin_dashboard.html',
+                         total_students=total_students,
+                         total_questions=total_questions,
+                         total_tests=total_tests,
+                         avg_score=avg_score,
+                         performance_labels=performance_labels,
+                         performance_data=performance_data,
+                         recent_activities=recent_activities)
+
+@app.route('/admin/analytics')
+@admin_required
+def analytics():
+    return render_template('analytics.html')
+
+@app.route('/admin/manage_students')
+@admin_required
+def manage_students():
+    students = Student.query.all()
+    return render_template('manage_students.html', students=students)
+
+@app.route('/admin/system_settings')
+@admin_required
+def system_settings():
+    return render_template('system_settings.html')
+
+@app.route('/admin/import_questions', methods=['GET', 'POST'])
+@admin_required
+def import_questions():
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file uploaded')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected')
+            return redirect(request.url)
+        
+        if file and file.filename.endswith('.csv'):
+            try:
+                # Read CSV file
+                stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+                csv_input = csv.DictReader(stream)
+                
+                questions_added = 0
+                for row in csv_input:
+                    question = Question(
+                        question_text=row['question_text'],
+                        options=str(row['options'].split('|')),
+                        correct_answer=row['correct_answer']
+                    )
+                    db.session.add(question)
+                    questions_added += 1
+                
+                db.session.commit()
+                flash(f'Successfully imported {questions_added} questions!')
+                return redirect(url_for('manage_questions'))
+            except Exception as e:
+                flash(f'Error importing questions: {str(e)}')
+                return redirect(request.url)
+    
+    return render_template('import_questions.html')
+
+@app.route('/admin/export_results')
+@admin_required
+def export_results():
+    # Create CSV file
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['Student Name', 'Score', 'Date Taken', 'Questions', 'Answers'])
+    
+    # Write data
+    results = TestResult.query.order_by(TestResult.date_taken.desc()).all()
+    for result in results:
+        writer.writerow([
+            f"{result.student.first_name} {result.student.last_name}",
+            result.score,
+            result.date_taken.strftime('%Y-%m-%d %H:%M:%S'),
+            len(ast.literal_eval(result.answers)),
+            result.answers
+        ])
+    
+    # Create response
+    output.seek(0)
+    return Response(
+        output,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=test_results.csv'}
+    )
 
 if __name__ == '__main__':
     with app.app_context():

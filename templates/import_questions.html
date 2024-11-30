@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Import Questions</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <h5>Instructions</h5>
+                            <p>Please upload a CSV file with the following columns:</p>
+                            <ul>
+                                <li><strong>question_text</strong>: The question text</li>
+                                <li><strong>options</strong>: Options separated by | character (e.g., "option1|option2|option3")</li>
+                                <li><strong>correct_answer</strong>: The correct answer</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Choose CSV File</label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".csv" required>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Import Questions</button>
+                            <a href="{{ url_for('manage_questions') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Sample CSV Template -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Sample CSV Format</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="bg-light p-3 rounded"><code>question_text,options,correct_answer
+What is the capital of France?,Paris|London|Berlin|Madrid,Paris
+Which planet is closest to the Sun?,Mercury|Venus|Earth|Mars,Mercury</code></pre>
+                    <a href="#" class="btn btn-outline-primary btn-sm mt-2" onclick="downloadSample()">
+                        <i class="fas fa-download me-2"></i>Download Sample CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function downloadSample() {
+    const csvContent = `question_text,options,correct_answer
+What is the capital of France?,Paris|London|Berlin|Madrid,Paris
+Which planet is closest to the Sun?,Mercury|Venus|Earth|Mars,Mercury`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'sample_questions.csv');
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}
