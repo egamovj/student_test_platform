@@ -168,9 +168,40 @@ def add_question():
         db.session.add(new_question)
         db.session.commit()
         flash('Question added successfully!')
-        return redirect(url_for('add_question'))
+        return redirect(url_for('manage_questions'))
     
     return render_template('add_question.html')
+
+@app.route('/manage_questions')
+@admin_required
+def manage_questions():
+    questions = Question.query.all()
+    return render_template('manage_questions.html', questions=questions)
+
+@app.route('/edit_question/<int:id>', methods=['GET', 'POST'])
+@admin_required
+def edit_question(id):
+    question = Question.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        question.question_text = request.form.get('question')
+        question.correct_answer = request.form.get('correct_answer')
+        question.options = str(request.form.getlist('options[]'))
+        
+        db.session.commit()
+        flash('Question updated successfully!')
+        return redirect(url_for('manage_questions'))
+    
+    return render_template('edit_question.html', question=question)
+
+@app.route('/delete_question/<int:id>')
+@admin_required
+def delete_question(id):
+    question = Question.query.get_or_404(id)
+    db.session.delete(question)
+    db.session.commit()
+    flash('Question deleted successfully!')
+    return redirect(url_for('manage_questions'))
 
 if __name__ == '__main__':
     with app.app_context():
